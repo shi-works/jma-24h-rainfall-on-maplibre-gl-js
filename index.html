@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>気象庁 特定期間の気象データ（24時間降水量）</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <script src='https://unpkg.com/maplibre-gl@3.1.0/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.1.0/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/pmtiles@2.7.0/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@5/turf.min.js"></script>
+    <script src='maplibre-gl-gsi-terrain.js'></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .map-overlay {
+            font: bold 10px/12px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            position: absolute;
+            width: 220px;
+            bottom: 25px;
+            left: 0;
+            padding: 5px;
+        }
+
+        .map-overlay .map-overlay-inner {
+            background-color: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .map-overlay label {
+            display: block;
+            margin: 0 0 0px;
+            font-size: 12px;
+            top: 100px;
+            left: 10px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .map-overlay input {
+            background-color: transparent;
+            display: inline-block;
+            width: 100%;
+            position: relative;
+            margin: 0;
+            cursor: ew-resize;
+        }
+
+        .legend {
+            background-color: #fff;
+            border-radius: 3px;
+            bottom: 40px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10);
+            font: 12px/14px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            padding: 10px;
+            position: absolute;
+            right: 10px;
+            z-index: 1;
+            line-height: 10px;
+            height: auto;
+        }
+
+        .legend h4 {
+            margin: 0 0 10px;
+        }
+
+        .legend div span {
+            border-radius: 50%;
+            display: inline-block;
+            height: 15px;
+            margin-right: 10px;
+            width: 15px;
+            color: orangered
+        }
+
+        .square {
+            width: 15px;
+            height: 15px;
+            /*border-radius: 4px;*/
+        }
+
+        #select-geojson {
+            padding: 3px 4px;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+            color: black;
+            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            width: 300px;
+            position: absolute;
+            top: 5px;
+            z-index: 10;
+        }
+
+        #geojson {
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div id="select-geojson">
+        <label><b>24時間降水量(期間最大値)の種類</b></label><br>
+        <select id="geojson" onchange="SelectGeoJSON()">
+            <option value="ame_24h_20230707-20230710">2023年07月07日～2023年07月10日（梅雨前線に伴う大雨）</option>
+            <option value="ame_24h_20230714-20230717">2023年07月14日～2023年07月17日（梅雨前線に伴う大雨）</option>
+        </select>
+    </div>
+
+    <div id='legend' class='legend'>
+        <h4>24時間降水量</h4>
+        <div class="square" style='background-color: rgba(180, 0, 104, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">400mm以上</span><br>
+        <div class="square" style='background-color: rgba(255, 40, 0, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">300mm以上</span><br>
+        <div class="square" style='background-color: rgba(255, 153, 0, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">200mm以上</span><br>
+        <div class="square" style='background-color: rgba(255, 245, 0, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">100mm以上</span><br>
+        <div class="square" style='background-color: rgba(0, 62, 255, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">50mm以上</span><br>
+        <div class="square" style='background-color: rgba(33, 140, 255, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">20mm以上</span><br>
+        <div class="square" style='background-color: rgba(160, 210, 255, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">10mm以上</span><br>
+        <div class="square" style='background-color: rgba(242, 242, 255, 0.8); display: inline-block;'>
+        </div><span style="display: inline-block; margin-left: 5px;">0.5mm以上</span><br>
+    </div>
+    <script>
+        var map = new maplibregl.Map({
+            container: 'map',
+            // style: './building3ddark.json',
+            // style: './dark.json',
+            style: 'https://tile2.openstreetmap.jp/styles/osm-bright/style.json',
+            center: [131.142, 33.356],
+            zoom: 7.17,
+            pitch: 60,
+            bearing: 0,
+            hash: true,
+            attributionControl: false
+        })
+
+        // ズーム・回転
+        map.addControl(new maplibregl.NavigationControl());
+
+        // フルスクリーンモードのオンオフ
+        map.addControl(new maplibregl.FullscreenControl());
+
+        // 現在位置表示
+        map.addControl(new maplibregl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: false
+            },
+            fitBoundsOptions: { maxZoom: 18 },
+            trackUserLocation: true,
+            showUserLocation: true
+        }));
+
+        // スケール表示
+        map.addControl(new maplibregl.ScaleControl({
+            maxWidth: 200,
+            unit: 'metric'
+        }));
+
+        // Attributionを折りたたみ表示
+        map.addControl(new maplibregl.AttributionControl({
+            compact: true,
+            customAttribution: '（<a href="https://twitter.com/syanseto" target="_blank">Twitter</a> | <a href="https://github.com/shi-works/ksj-bus-map-on-maplibre-gl-js" target="_blank">Github</a>） '
+        }));
+
+        // 3D地形コントロール
+        map.addControl(
+            new maplibregl.TerrainControl({
+                source: 'gsidem',
+                exaggeration: 1 // 標高を強調する倍率
+            })
+        );
+
+        map.on('load', function () {
+            // 標高タイルソース
+            map.addSource("gsidem", {
+                type: 'raster-dem',
+                tiles: [
+                    'gsidem://https://cyberjapandata.gsi.go.jp/xyz/dem_png/{z}/{x}/{y}.png',
+                ],
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html#dem" target="_blank">地理院タイル(標高タイル)</a>',
+                tileSize: 256
+            });
+
+            // map.setTerrain({ 'source': 'gsidem', 'exaggeration': 1 });
+
+            // 陰影起伏図ソース
+            map.addSource("hillshade", {
+                type: 'raster',
+                tiles: [
+                    'https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png',
+                ],
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html#hillshademap" target="_blank">地理院タイル(陰影起伏図)</a>',
+                tileSize: 256
+            });
+
+            // 陰影起伏図レイヤ
+            map.addLayer({
+                id: 'hillshade-tiles',
+                type: 'raster',
+                source: 'hillshade',
+                minzoom: 2,
+                maxzoom: 18,
+                paint: {
+                    'raster-opacity': 0.5
+                }
+            });
+
+            // 24時間降水量ポイントソース
+            map.addSource("ame-24h", {
+                type: "geojson",
+                data: "./ame_24h_20230707-20230710.geojson",
+                attribution: '<a href="https://www.data.jma.go.jp/obd/stats/data/mdrr/periodstat/index.html" target="_blank">気象庁 特定期間の気象データ（24時間降水量）を加工して作成</a>',
+            });
+
+            // 24時間降水量ポイントレイヤ
+            map.addLayer({
+                'id': 'ame-24h-points',
+                'type': 'circle',
+                'source': 'ame-24h',
+                minzoom: 1,
+                maxzoom: 23,
+                'paint': {
+                    'circle-color': 'rgba(0, 0, 0, 0)'
+                }
+            });
+
+            // 24時間降水量円柱ポリゴンソース
+            map.addSource('extrusion_source', {
+                "type": "geojson",
+                "data": {
+                    type: 'FeatureCollection',
+                    features: []
+                }
+            });
+
+            // 24時間降水量円柱ポリゴンレイヤ
+            map.addLayer({
+                'id': 'extrusion',
+                'type': 'fill-extrusion',
+                'source': 'extrusion_source',
+                minzoom: 1,
+                maxzoom: 23,
+                'paint': {
+                    'fill-extrusion-color': [
+                        "case",
+                        ["<", ["/", ["get", "height"], 500], 0.5], 'rgba(255, 255, 255, 0.8)',  // 降水量が0.5mm未満のとき（場合によっては透明や別の色を設定する）
+                        ["<", ["/", ["get", "height"], 500], 10], 'rgba(242, 242, 255, 0.8)',   // 降水量が0.5mm以上10mm未満のとき
+                        ["<", ["/", ["get", "height"], 500], 20], 'rgba(160, 210, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 50], 'rgba(33, 140, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 100], 'rgba(0, 62, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 200], 'rgba(255, 245, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 300], 'rgba(255, 153, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 400], 'rgba(255, 40, 0, 0.8)',
+                        'rgba(180, 0, 104, 0.8)' // 降水量が400mm以上のとき
+                    ],
+                    // 'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-height': [
+                        "case",
+                        ["<", ["/", ["get", "height"], 500], 0.5], 0,    // 降水量が0.5mm未満のとき、高さを0にする
+                        ["get", "height"]
+                    ],
+                    'fill-extrusion-base': ['get', 'base'],
+                    'fill-extrusion-opacity': 0.8
+                }
+            });
+
+            // 24時間降水量ラベルレイヤ
+            map.addLayer({
+                'id': 'ame-24h-label',
+                'type': 'symbol',
+                'source': 'ame-24h',
+                'minzoom': 8,
+                'maxzoom': 23,
+                'layout': {
+                    // 'text-field': ['get', '観測所名'],
+                    'text-field': ['concat', ['get', '観測所名'], '\n', ['to-string', ['get', '期間最大値（mm）']], 'mm'],
+                    'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+                    'text-size': 10,
+                    'text-offset': [1, -1],
+                    'text-allow-overlap': true
+                },
+                'paint': {
+                    'text-color': 'rgba(0, 0, 0, 1)',
+                    'text-halo-color': 'rgba(255, 255, 255,1)',
+                    'text-halo-width': 1
+                }
+            });
+
+            // 'data'イベントをmapオブジェクトにバインドします。これは、ソースデータが変更されたときに発火します。
+            map.on('data', function (e) {
+                // 初期の空のFeatureCollectionを作成します。後でこのオブジェクトに各円柱のデータを追加します。
+                const data = {
+                    "type": "FeatureCollection",
+                    "features": []
+                };
+
+                // データタイプが'source'で、ソースIDが'ame-24h-20230707'の場合のみ、フィーチャを更新します。
+                if (e.dataType === 'source' && e.sourceId === 'ame-24h') {
+                    // レイヤー'ame-24h-20230707-points'からレンダリングされたフィーチャをクエリします。
+                    const qfs = map.queryRenderedFeatures({ layers: ['ame-24h-points'] });
+
+                    // 各フィーチャについて処理を行います。
+                    qfs.forEach(function (object, i) {
+                        // フィーチャの中心点（経度と緯度）を取得します。
+                        const center = object.geometry.coordinates;
+
+                        // 円柱の半径を3000として固定します。
+                        let radius = 3000;
+
+                        // フィーチャのプロパティを更新します。この場合、高さは'期間最大値（mm）'プロパティの500倍、半径は上で定義した固定値、基底は0とします。
+                        // また、フィーチャのインデックスもプロパティに追加します。
+                        object.properties.height = object.properties['期間最大値（mm）'] * 500;
+                        object.properties.radius = radius;
+                        object.properties.base = 0;
+                        object.properties.index = i;
+
+                        // ログにフィーチャの詳細を出力します。
+                        // console.log("object: ", object);
+
+                        // 円柱の形状を定義するためのオプションを設定します。
+                        const options = {
+                            steps: 16,
+                            units: 'meters',
+                            properties: object.properties
+                        };
+
+                        // 円柱の位置を中心に、上で定義した半径の円を生成します。
+                        const feature = turf.circle(center, radius, options);
+
+                        // 生成した円にフィーチャのインデックスをIDとして設定します。
+                        feature.id = i;
+
+                        // 生成した円を先ほどのFeatureCollectionに追加します。
+                        data.features.push(feature);
+
+                    });
+
+                    // 'extrusion_source'という名前のソースを更新し、新しく生成したFeatureCollectionを設定します。
+                    map.getSource('extrusion_source').setData(data);
+                }
+            });
+        });
+
+        // マップの中心座標を設定
+        function getMapCenter(CenterText) {
+            const CenterTable = {
+                // 緯度、経度、ズームレベル、ベアリング、ピッチ
+                'ame_24h_20230707-20230710': [33.356, 131.142, 7.17, 0, 60],
+                'ame_24h_20230714-20230717': [40.588, 140.746, 7.29, 0, 54],
+            };
+            return CenterTable[CenterText];
+        }
+
+        // GeoJSON切り替え表示
+        function SelectGeoJSON() {
+            var GeoJSONName = document.getElementById('geojson').value;
+
+            // 一旦、レイヤとソースを削除
+            map.removeLayer("ame-24h-points");
+            map.removeLayer("ame-24h-label");
+            map.removeSource("ame-24h");
+
+            // 一旦、レイヤとソースを削除
+            map.removeLayer("extrusion");
+            map.removeSource("extrusion_source");
+
+            // 値を緯度、経度にそれぞれ代入
+            const locationInfo = getMapCenter(GeoJSONName);
+
+            const latitude = locationInfo[0];
+            const longitude = locationInfo[1];
+            const zoomlevel = locationInfo[2];
+            const bearing = locationInfo[3];
+            const pitch = locationInfo[4];
+
+            // マップの中心座標へ遷移
+            map.flyTo({
+                center: [longitude, latitude],
+                zoom: zoomlevel,
+                bearing: bearing,
+                pitch: pitch
+            });
+
+            // 24時間降水量ポイントソース
+            map.addSource("ame-24h", {
+                type: "geojson",
+                data: "./" + GeoJSONName + ".geojson",
+                attribution: '<a href="https://www.data.jma.go.jp/obd/stats/data/mdrr/periodstat/index.html" target="_blank">気象庁 特定期間の気象データ（24時間降水量）を加工して作成</a>',
+            });
+
+            // 24時間降水量ポイントレイヤ
+            map.addLayer({
+                'id': 'ame-24h-points',
+                'type': 'circle',
+                'source': 'ame-24h',
+                minzoom: 1,
+                maxzoom: 23,
+                'paint': {
+                    'circle-color': 'rgba(0, 0, 0, 0)'
+                }
+            });
+
+            // 24時間降水量円柱ポリゴンソース
+            map.addSource('extrusion_source', {
+                "type": "geojson",
+                "data": {
+                    type: 'FeatureCollection',
+                    features: []
+                }
+            });
+
+            // 24時間降水量円柱ポリゴンレイヤ
+            map.addLayer({
+                'id': 'extrusion',
+                'type': 'fill-extrusion',
+                'source': 'extrusion_source',
+                minzoom: 1,
+                maxzoom: 23,
+                'paint': {
+                    'fill-extrusion-color': [
+                        "case",
+                        ["<", ["/", ["get", "height"], 500], 0.5], 'rgba(255, 255, 255, 0.8)',  // 降水量が0.5mm未満のとき（場合によっては透明や別の色を設定する）
+                        ["<", ["/", ["get", "height"], 500], 10], 'rgba(242, 242, 255, 0.8)',   // 降水量が0.5mm以上10mm未満のとき
+                        ["<", ["/", ["get", "height"], 500], 20], 'rgba(160, 210, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 50], 'rgba(33, 140, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 100], 'rgba(0, 62, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 200], 'rgba(255, 245, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 300], 'rgba(255, 153, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], 500], 400], 'rgba(255, 40, 0, 0.8)',
+                        'rgba(180, 0, 104, 0.8)' // 降水量が400mm以上のとき
+                    ],
+                    // 'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-height': [
+                        "case",
+                        ["<", ["/", ["get", "height"], 500], 0.5], 0,    // 降水量が0.5mm未満のとき、高さを0にする
+                        ["get", "height"]
+                    ],
+                    'fill-extrusion-base': ['get', 'base'],
+                    'fill-extrusion-opacity': 0.8
+                }
+            });
+
+            // 24時間降水量ラベルレイヤ
+            map.addLayer({
+                'id': 'ame-24h-label',
+                'type': 'symbol',
+                'source': 'ame-24h',
+                'minzoom': 8,
+                'maxzoom': 23,
+                'layout': {
+                    // 'text-field': ['get', '観測所名'],
+                    'text-field': ['concat', ['get', '観測所名'], '\n', ['to-string', ['get', '期間最大値（mm）']], 'mm'],
+                    'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+                    'text-size': 10,
+                    'text-offset': [1, -1],
+                    'text-allow-overlap': true
+                },
+                'paint': {
+                    'text-color': 'rgba(0, 0, 0, 1)',
+                    'text-halo-color': 'rgba(255, 255, 255,1)',
+                    'text-halo-width': 1
+                }
+            });
+
+            // 'data'イベントをmapオブジェクトにバインドします。これは、ソースデータが変更されたときに発火します。
+            map.on('data', function (e) {
+                // 初期の空のFeatureCollectionを作成します。後でこのオブジェクトに各円柱のデータを追加します。
+                const data = {
+                    "type": "FeatureCollection",
+                    "features": []
+                };
+
+                // データタイプが'source'で、ソースIDが'ame-24h-20230707'の場合のみ、フィーチャを更新します。
+                if (e.dataType === 'source' && e.sourceId === 'ame-24h') {
+                    // レイヤー'ame-24h-20230707-points'からレンダリングされたフィーチャをクエリします。
+                    const qfs = map.queryRenderedFeatures({ layers: ['ame-24h-points'] });
+
+                    // 各フィーチャについて処理を行います。
+                    qfs.forEach(function (object, i) {
+                        // フィーチャの中心点（経度と緯度）を取得します。
+                        const center = object.geometry.coordinates;
+
+                        // 円柱の半径を3000として固定します。
+                        let radius = 3000;
+
+                        // フィーチャのプロパティを更新します。この場合、高さは'期間最大値（mm）'プロパティの500倍、半径は上で定義した固定値、基底は0とします。
+                        // また、フィーチャのインデックスもプロパティに追加します。
+                        object.properties.height = object.properties['期間最大値（mm）'] * 500;
+                        object.properties.radius = radius;
+                        object.properties.base = 0;
+                        object.properties.index = i;
+
+                        // ログにフィーチャの詳細を出力します。
+                        // console.log("object: ", object);
+
+                        // 円柱の形状を定義するためのオプションを設定します。
+                        const options = {
+                            steps: 16,
+                            units: 'meters',
+                            properties: object.properties
+                        };
+
+                        // 円柱の位置を中心に、上で定義した半径の円を生成します。
+                        const feature = turf.circle(center, radius, options);
+
+                        // 生成した円にフィーチャのインデックスをIDとして設定します。
+                        feature.id = i;
+
+                        // 生成した円を先ほどのFeatureCollectionに追加します。
+                        data.features.push(feature);
+
+                    });
+
+                    // 'extrusion_source'という名前のソースを更新し、新しく生成したFeatureCollectionを設定します。
+                    map.getSource('extrusion_source').setData(data);
+                }
+            });
+
+        }
+    </script>
+
+</body>
+
+</html>
