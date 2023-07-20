@@ -1,4 +1,4 @@
-# jma-ame-24h-maplibre-gl-js
+# jma-24h-rainfall-on-maplibre-gl-js
 ## Public Website
 https://shi-works.github.io/jma-24h-rainfall-on-maplibre-gl-js/
 
