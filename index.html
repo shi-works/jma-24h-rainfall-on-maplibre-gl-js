@@ -255,6 +255,9 @@
                 }
             });
 
+            // 円柱ポリゴン高さ倍率
+            const height_scale = 50;
+
             // 24時間降水量円柱ポリゴンレイヤ
             map.addLayer({
                 'id': 'extrusion',
@@ -265,20 +268,20 @@
                 'paint': {
                     'fill-extrusion-color': [
                         "case",
-                        ["<", ["/", ["get", "height"], 500], 0.5], 'rgba(255, 255, 255, 0.8)',  // 降水量が0.5mm未満のとき（場合によっては透明や別の色を設定する）
-                        ["<", ["/", ["get", "height"], 500], 10], 'rgba(242, 242, 255, 0.8)',   // 降水量が0.5mm以上10mm未満のとき
-                        ["<", ["/", ["get", "height"], 500], 20], 'rgba(160, 210, 255, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 50], 'rgba(33, 140, 255, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 100], 'rgba(0, 62, 255, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 200], 'rgba(255, 245, 0, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 300], 'rgba(255, 153, 0, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 400], 'rgba(255, 40, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 0.5], 'rgba(255, 255, 255, 0.8)',  // 降水量が0.5mm未満のとき（場合によっては透明や別の色を設定する）
+                        ["<", ["/", ["get", "height"], height_scale], 10], 'rgba(242, 242, 255, 0.8)',   // 降水量が0.5mm以上10mm未満のとき
+                        ["<", ["/", ["get", "height"], height_scale], 20], 'rgba(160, 210, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 50], 'rgba(33, 140, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 100], 'rgba(0, 62, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 200], 'rgba(255, 245, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 300], 'rgba(255, 153, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 400], 'rgba(255, 40, 0, 0.8)',
                         'rgba(180, 0, 104, 0.8)' // 降水量が400mm以上のとき
                     ],
                     // 'fill-extrusion-height': ['get', 'height'],
                     'fill-extrusion-height': [
                         "case",
-                        ["<", ["/", ["get", "height"], 500], 0.5], 0,    // 降水量が0.5mm未満のとき、高さを0にする
+                        ["<", ["/", ["get", "height"], height_scale], 0.5], 0,    // 降水量が0.5mm未満のとき、高さを0にする
                         ["get", "height"]
                     ],
                     'fill-extrusion-base': ['get', 'base'],
@@ -331,7 +334,7 @@
 
                         // フィーチャのプロパティを更新します。この場合、高さは'期間最大値（mm）'プロパティの500倍、半径は上で定義した固定値、基底は0とします。
                         // また、フィーチャのインデックスもプロパティに追加します。
-                        object.properties.height = object.properties['期間最大値（mm）'] * 500;
+                        object.properties.height = object.properties['期間最大値（mm）'] * height_scale;
                         object.properties.radius = radius;
                         object.properties.base = 0;
                         object.properties.index = i;
@@ -431,6 +434,9 @@
                 }
             });
 
+            // 円柱ポリゴン高さ倍率
+            const height_scale = 50;
+
             // 24時間降水量円柱ポリゴンレイヤ
             map.addLayer({
                 'id': 'extrusion',
@@ -441,20 +447,20 @@
                 'paint': {
                     'fill-extrusion-color': [
                         "case",
-                        ["<", ["/", ["get", "height"], 500], 0.5], 'rgba(255, 255, 255, 0.8)',  // 降水量が0.5mm未満のとき（場合によっては透明や別の色を設定する）
-                        ["<", ["/", ["get", "height"], 500], 10], 'rgba(242, 242, 255, 0.8)',   // 降水量が0.5mm以上10mm未満のとき
-                        ["<", ["/", ["get", "height"], 500], 20], 'rgba(160, 210, 255, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 50], 'rgba(33, 140, 255, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 100], 'rgba(0, 62, 255, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 200], 'rgba(255, 245, 0, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 300], 'rgba(255, 153, 0, 0.8)',
-                        ["<", ["/", ["get", "height"], 500], 400], 'rgba(255, 40, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 0.5], 'rgba(255, 255, 255, 0.8)',  // 降水量が0.5mm未満のとき（場合によっては透明や別の色を設定する）
+                        ["<", ["/", ["get", "height"], height_scale], 10], 'rgba(242, 242, 255, 0.8)',   // 降水量が0.5mm以上10mm未満のとき
+                        ["<", ["/", ["get", "height"], height_scale], 20], 'rgba(160, 210, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 50], 'rgba(33, 140, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 100], 'rgba(0, 62, 255, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 200], 'rgba(255, 245, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 300], 'rgba(255, 153, 0, 0.8)',
+                        ["<", ["/", ["get", "height"], height_scale], 400], 'rgba(255, 40, 0, 0.8)',
                         'rgba(180, 0, 104, 0.8)' // 降水量が400mm以上のとき
                     ],
                     // 'fill-extrusion-height': ['get', 'height'],
                     'fill-extrusion-height': [
                         "case",
-                        ["<", ["/", ["get", "height"], 500], 0.5], 0,    // 降水量が0.5mm未満のとき、高さを0にする
+                        ["<", ["/", ["get", "height"], height_scale], 0.5], 0,    // 降水量が0.5mm未満のとき、高さを0にする
                         ["get", "height"]
                     ],
                     'fill-extrusion-base': ['get', 'base'],
@@ -507,7 +513,7 @@
 
                         // フィーチャのプロパティを更新します。この場合、高さは'期間最大値（mm）'プロパティの500倍、半径は上で定義した固定値、基底は0とします。
                         // また、フィーチャのインデックスもプロパティに追加します。
-                        object.properties.height = object.properties['期間最大値（mm）'] * 500;
+                        object.properties.height = object.properties['期間最大値（mm）'] * height_scale;
                         object.properties.radius = radius;
                         object.properties.base = 0;
                         object.properties.index = i;
